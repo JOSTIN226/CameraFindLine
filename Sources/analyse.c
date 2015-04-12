@@ -455,101 +455,130 @@ void RebuildLine()
 void Analyze_Cross()
 {
 	byte i,irow,irowb,irowe,lr,dis,dis2,num=0,flags=0,maxr,maxc;
-	if(EndRow[0]==0&&EndRow[1]==0&&StartRow[0]!=ROWS&&StartRow[1]!=ROWS&&ABS(StartRow[0]-StartRow[1])<25)	return;		//针对虚线，长直道
+	if(EndRow[0]==0&&EndRow[1]==0&&StartRow[0]!=ROWS&&StartRow[1]!=ROWS&&ABS(StartRow[0]-StartRow[1])<25)
+		return;		//针对虚线，长直道
 	for(lr=0;lr<2;lr++)
 	{
 		if(StartRow[lr]==ROWS)	continue;
-		if(SegNum[lr]>2)		continue;
+		if(SegNum[lr]>2)		continue;// 黑线段数多余两条
 		for(irow=0;irow<ROW;irow++)
-			dif[irow]=0;
+			dif[irow]=0;					//二次差分量数组清零
 		for(irow=StartRow[lr];irow>EndRow[lr];irow--)
-			dif[irow]=BlackLine[lr][irow-1]-BlackLine[lr][irow];
-		for(irow=EndRow[lr]+1;irow<StartRow[lr];irow++)
-			dif[irow]=ABS(dif[irow]-dif[irow+1]);
-		dif[StartRow[lr]]=0;
+			dif[irow]=BlackLine[lr][irow-1]-BlackLine[lr][irow]; //记录黑线变化趋势 从近端到远端
+		for(irow=EndRow[lr]+1;irow<StartRow[lr];irow++)			
+			dif[irow]=ABS(dif[irow]-dif[irow+1]);				//记录黑线变化趋势二阶(绝对值) 从远端到近端
+		dif[StartRow[lr]]=0;					//在第一个循环中已经赋值,此处清零,不理解[1]
 		irowb=StartRow[lr]-2;irowe=EndRow[lr]+2;
 		maxc=lr*COLUMN;
 		for(irow=irowb;irow>=irowe;irow--)
 		{
 			if(irow<15)	break;
-			if((BlackLine[lr][irow]>maxc&&lr==0)||(BlackLine[lr][irow]<maxc&&lr==1)){
+			if((BlackLine[lr][irow]>maxc&&lr==0)||(BlackLine[lr][irow]<maxc&&lr==1))
+			{
 				maxc=BlackLine[lr][irow];
 				maxr=irow;
+			}//找左黑线右极值点   右黑线左极值点
+			if(dif[irow]>3
+				&&(BlackLine[lr][irow]-BlackLine[lr][irow-2])*(BlackLine[lr][irow]-BlackLine[lr][irow+2])>0)
+			//该点是一个拐点
+			{
+				LineType[lr]=CrossLine; // 这是十字
+				TurnRow[lr]=irow;flags=1;num++; // 记录当前拐点,num计数一次,flag标记
 			}
-			if(dif[irow]>3&&(BlackLine[lr][irow]-BlackLine[lr][irow-2])*(BlackLine[lr][irow]-BlackLine[lr][irow+2])>0){
-				LineType[lr]=CrossLine;
-				TurnRow[lr]=irow;flags=1;num++;
-			}
-			else if(dif[irow]>3&&(BlackLine[lr][irow]-BlackLine[lr][irow-2])*(BlackLine[lr][irow]-BlackLine[lr][irow+2])>0){
-				if(num==0&&(BlackLine[lr][irow-1]-BlackLine[lr][irow-2])*(BlackLine[lr][irow+1]-BlackLine[lr][irow+2])>0){
+			else if(dif[irow]>3//不理解 这个elseif应该是无法进入的，和之前的if是同样的条件！？
+					&&(BlackLine[lr][irow]-BlackLine[lr][irow-2])*(BlackLine[lr][irow]-BlackLine[lr][irow+2])>0)
+			{
+				if(num==0  //没出现过拐点
+					&&(BlackLine[lr][irow-1]-BlackLine[lr][irow-2])*(BlackLine[lr][irow+1]-BlackLine[lr][irow+2])>0)
+				{
 					LineType[lr]=CrossLine;
 					TurnRow[lr]=irow;	flags=1;
 				}
 				num++;
 			}
-			else if(dif[irow]>=2&&flags==0){
-				for(i=0;i<2;i++)
+			else if(dif[irow]>=2&&flags==0) //没出现过拐点 此处曲率较大
+			{
+				for(i=0;i<2;i++)//检测是否是拐点
 					if((!lr&&!(BlackLine[lr][irow-i]>=BlackLine[lr][irow-i-1]&&BlackLine[lr][irow+i]>=BlackLine[lr][irow+i+1]))
 					||(lr&&!(BlackLine[lr][irow-i]<=BlackLine[lr][irow-i-1]&&BlackLine[lr][irow+i]<=BlackLine[lr][irow+i+1])))
-					break;
-				if(i==2&&!(BlackLine[lr][irow]==BlackLine[lr][irow-2]||BlackLine[lr][irow]==BlackLine[lr][irow+2])){
-					dis=MIN(3,irow-EndRow[lr]);		dis=MIN(dis,StartRow[lr]-irow);
+					break;//是拐点跳出  左i=0 右i=1,没有i=2
+				if(i==2	//不是拐点
+					&&!(BlackLine[lr][irow]==BlackLine[lr][irow-2]||BlackLine[lr][irow]==BlackLine[lr][irow+2]))
+				//锯齿状?
+				{
+					dis=MIN(3,irow-EndRow[lr]);		dis=MIN(dis,StartRow[lr]-irow); //
 					dis2=MIN(5,irow-EndRow[lr]);		dis2=MIN(dis2,StartRow[lr]-irow);
 					if(lr&&BlackLine[lr][irow-dis]+BlackLine[lr][irow+dis]-2*BlackLine[lr][irow]>5
-						&&BlackLine[lr][irow-dis2]+BlackLine[lr][irow+dis2]-2*BlackLine[lr][irow]>7){
+						&&BlackLine[lr][irow-dis2]+BlackLine[lr][irow+dis2]-2*BlackLine[lr][irow]>7)
+					{//从更远的距离确定是否拐点
 						LineType[lr]=CrossLine;
 						TurnRow[lr]=irow;
 						flags=1;
 					}
 					else if(!lr&&2*BlackLine[lr][irow]-BlackLine[lr][irow-dis]-BlackLine[lr][irow+dis]>5
-						&&2*BlackLine[lr][irow]-BlackLine[lr][irow-dis2]-BlackLine[lr][irow+dis2]>7){
+						&&2*BlackLine[lr][irow]-BlackLine[lr][irow-dis2]-BlackLine[lr][irow+dis2]>7)
+					{
 						LineType[lr]=CrossLine;
 						TurnRow[lr]=irow;
 						flags=1;
 					}
 				}
 			}
-			else if(dif[irow]==1&&dif[irow-1]==1&&flags==0){
-				if(lr&&!(BlackLine[lr][irow]<BlackLine[lr][irow+1]&&BlackLine[lr][irow-1]<BlackLine[lr][irow-2]))	continue;
-				else if(!lr&&!(BlackLine[lr][irow]>BlackLine[lr][irow+1]&&BlackLine[lr][irow-1]>BlackLine[lr][irow-2]))	continue;
+			else if(dif[irow]==1&&dif[irow-1]==1&&flags==0){//持续弯曲
+				if(lr
+					&&!(BlackLine[lr][irow]<BlackLine[lr][irow+1]&&BlackLine[lr][irow-1]<BlackLine[lr][irow-2]))
+					continue;
+				else if(!lr
+					&&!(BlackLine[lr][irow]>BlackLine[lr][irow+1]&&BlackLine[lr][irow-1]>BlackLine[lr][irow-2]))	
+					continue;
 				dis=MIN(3,irow-1-EndRow[lr]);		dis=MIN(dis,StartRow[lr]-irow);
 				dis2=MIN(5,irow-1-EndRow[lr]);		dis2=MIN(dis2,StartRow[lr]-irow);
 				if(lr&&BlackLine[lr][irow-dis-1]+BlackLine[lr][irow+dis]-BlackLine[lr][irow-1]-BlackLine[lr][irow]>5
-					&&BlackLine[lr][irow-dis2-1]+BlackLine[lr][irow+dis2]-BlackLine[lr][irow-1]-BlackLine[lr][irow]>7){
+					&&BlackLine[lr][irow-dis2-1]+BlackLine[lr][irow+dis2]-BlackLine[lr][irow-1]-BlackLine[lr][irow]>7)
+				{//从更远的距离确定是否拐点 右
 					LineType[lr]=CrossLine;
 					TurnRow[lr]=irow;
 					flags=1;
 				}
 				else if(!lr&&BlackLine[lr][irow]+BlackLine[lr][irow-1]-BlackLine[lr][irow-dis-1]-BlackLine[lr][irow+dis]>5
-					&&BlackLine[lr][irow]+BlackLine[lr][irow-1]-BlackLine[lr][irow-dis2-1]-BlackLine[lr][irow+dis2]>5){
+					&&BlackLine[lr][irow]+BlackLine[lr][irow-1]-BlackLine[lr][irow-dis2-1]-BlackLine[lr][irow+dis2]>5)
+				{//左
 					LineType[lr]=CrossLine;
 					TurnRow[lr]=irow;
 					flags=1;
 				}
 			}
-		}
-		if(num>1){				//对应黑色赛道下的虚线小S弯
+		}//拐点寻找完毕
+		if(num>1){				//多个拐点 对应黑色赛道下的虚线小S弯
 			RoadType=SmallS;
 			LineType[lr]=UnBegin;
 			TurnRow[lr]=ROWS;
 		}
-		if(LineType[lr]==CrossLine&&TurnRow[lr]!=ROWS)
+		if(LineType[lr]==CrossLine&&TurnRow[lr]!=ROWS)//线性为十字，且拐点在中间
 		{
-			BlackLine_Init(lr,TurnRow[lr]-1,EndRow[lr]);
+			BlackLine_Init(lr,TurnRow[lr]-1,EndRow[lr]);//补全黑线
 			EndRow[lr]=TurnRow[lr];
 		}
-		if(TurnRow[lr]==ROWS&&EndRow[lr]>25&&EndRow[lr]<ROW-4&&(ABS(EndRow[0]-EndRow[1])<18||TurnRow[1-lr]!=ROWS)){		//
-			if(maxr-EndRow[lr]<5||ABS(BlackLine[lr][maxr]-BlackLine[lr][EndRow[lr]])<4){
+		if(TurnRow[lr]==ROWS	//无拐点
+			&&EndRow[lr]>25&&EndRow[lr]<ROW-4 //线的结束点在一定范围内
+			&&(ABS(EndRow[0]-EndRow[1])<18||TurnRow[1-lr]!=ROWS))//左右结束点距离不远或另一端有拐点
+		{
+			if(maxr-EndRow[lr]<5||ABS(BlackLine[lr][maxr]-BlackLine[lr][EndRow[lr]])<4)//极值点与结束点纵向、横向距离接近
+			{
 				if((lr==0&&BlackLine[lr][EndRow[lr]]<40&&BlackLine[lr][EndRow[lr]]>5)
-				||(lr==1&&BlackLine[lr][EndRow[lr]]<78&&BlackLine[lr][EndRow[lr]]>35))
-				LineType[lr]=CrossLine;}
-			else{
+				||(lr==1&&BlackLine[lr][EndRow[lr]]<78&&BlackLine[lr][EndRow[lr]]>35))//结束点在某个奇妙深刻的地点
+					LineType[lr]=CrossLine;
+			}
+			else
+			{
 				if((lr==0&&BlackLine[lr][EndRow[lr]]<50&&BlackLine[lr][EndRow[lr]]>10)
 				||(lr==1&&BlackLine[lr][EndRow[lr]]<73&&BlackLine[lr][EndRow[lr]]>30))
-				LineType[lr]=CrossLine;TurnRow[lr]=maxr;}
-		}
-	}
-	if(StartRow[1]<5+EndRow[0]&&BlackLine[0][EndRow[0]]>BlackLine[1][EndRow[1]]+10)//十字找线出错
+					LineType[lr]=CrossLine;
+				TurnRow[lr]=maxr;//拐点定义为极值点
+			}
+		}//没能理解这个是什么情况判断的十字
+	}//左右找线结束
+	if(StartRow[1]<5+EndRow[0]&&BlackLine[0][EndRow[0]]>BlackLine[1][EndRow[1]]+10)//十字找线出错//黑线错位？
 		Line_Init(1);
 	if(StartRow[0]<5+EndRow[1]&&BlackLine[0][EndRow[0]]>BlackLine[1][EndRow[1]]+10)
 		Line_Init(0);
